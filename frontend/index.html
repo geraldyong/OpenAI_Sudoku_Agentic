@@ -18,7 +18,7 @@
   
   <!-- Main content container -->
   <div id="main-container">
-    <!-- Submission container (input pane and submission button) -->
+    <!-- Submission Container: visible by default -->
     <div id="submission-container">
       <div id="input-method">
         <h2>Enter Puzzle</h2>
@@ -46,20 +46,23 @@
       </div>
     </div>
     
-    <!-- Active buttons container (shown after a puzzle is submitted) -->
+    <!-- Active Buttons Container: hidden by default -->
     <div id="active-buttons" class="hidden">
       <button id="new-puzzle-btn">Submit New Puzzle</button>
       <button id="undo-btn" disabled>Undo</button>
       <button id="redo-btn" disabled>Redo</button>
       <button id="download-json">Download JSON</button>
       <button id="download-md">Download Markdown</button>
+      <button id="propose-move-btn">Propose Next Move</button>
     </div>
     
     <hr>
     
-    <!-- Puzzle display section (the puzzle board is rendered here) -->
+    <!-- Puzzle Display Section -->
     <div id="puzzle-display">
       <div id="puzzle-table-container"></div>
+      <!-- Container for Next Move Suggestion; hidden by default -->
+      <div id="next-move-display" class="hidden"></div>
     </div>
     
     <div id="message"></div>
@@ -79,7 +82,7 @@
       </div>
     </div>
   </div>
-  
+
   <script src="script.js"></script>
 </body>
 </html>

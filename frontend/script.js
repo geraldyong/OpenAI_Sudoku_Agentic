@@ -1,13 +1,12 @@
 "use strict";
 
 document.addEventListener("DOMContentLoaded", function () {
-
   // Global variables
   let currentPuzzle = {}; // Latest puzzle JSON from backend
   let selectedCell = "";  // e.g., "R3C5"
   let startTime = null;
   let timerInterval = null;
-  const BASE_URL = "http://localhost:8000";  // Adjust if needed
+  const BASE_URL = "http://localhost:8000"; // Adjust if needed
 
   // History stacks for undo/redo
   let undoStack = [];
@@ -38,8 +37,10 @@ document.addEventListener("DOMContentLoaded", function () {
   const redoBtn = document.getElementById("redo-btn");
   const downloadJsonBtn = document.getElementById("download-json");
   const downloadMdBtn = document.getElementById("download-md");
+  const proposeMoveBtn = document.getElementById("propose-move-btn");
+  const nextMoveDisplay = document.getElementById("next-move-display");
 
-  // Create manual input table (9x9)
+  // --- Create Manual Input Grid (9x9) ---
   function createManualTable() {
     manualTable.innerHTML = "";
     for (let r = 1; r <= 9; r++) {
@@ -64,7 +65,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
   createManualTable();
 
-  // Toggle input sections based on radio button selection
+  // --- Toggle Input Sections Based on Radio Button ---
   radioButtons.forEach(rb => {
     rb.addEventListener("change", function () {
       if (this.value === "manual") {
@@ -83,7 +84,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   });
 
-  // Build puzzle text from manual table
+  // --- Build Puzzle Text from Manual Table ---
   function buildPuzzleTextFromTable() {
     let lines = [];
     let rows = manualTable.getElementsByTagName("tr");
@@ -99,7 +100,7 @@ document.addEventListener("DOMContentLoaded", function () {
     return lines.join("\n");
   }
 
-  // Timer functions
+  // --- Timer Functions ---
   function startTimer() {
     startTime = new Date();
     timerInterval = setInterval(() => {
@@ -116,7 +117,7 @@ document.addEventListener("DOMContentLoaded", function () {
     clearInterval(timerInterval);
   }
 
-  // Update remaining digits area
+  // --- Update Remaining Digits Display ---
   function updateRemainingDigits() {
     let counts = {};
     for (let d = 1; d <= 9; d++) {
@@ -149,7 +150,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-  // Highlight board cells based on a digit
+  // --- Highlight and Remove Highlight on Board ---
   function highlightByDigit(digit) {
     document.querySelectorAll("#puzzle-table td").forEach(td => {
       let key = td.getAttribute("data-cell-key");
@@ -169,7 +170,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  // History management
+  // --- History Management ---
   function pushState() {
     undoStack.push(JSON.parse(JSON.stringify(currentPuzzle)));
     redoStack = [];
@@ -197,7 +198,7 @@ document.addEventListener("DOMContentLoaded", function () {
     updateHistoryButtons();
   });
 
-  // Submit Puzzle event handler
+  // --- Submit Puzzle Event Handler ---
   submitButton.addEventListener("click", async () => {
     let inputType = document.querySelector('input[name="inputType"]:checked').value;
     let puzzleText = "";
@@ -219,8 +220,8 @@ document.addEventListener("DOMContentLoaded", function () {
     try {
       const loadRes = await fetch(`${BASE_URL}/loadPuzzle`, {
         method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({text: puzzleText})
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: puzzleText })
       });
       if (!loadRes.ok) {
         const err = await loadRes.json();
@@ -229,8 +230,8 @@ document.addEventListener("DOMContentLoaded", function () {
       let puzzle = await loadRes.json();
       const candRes = await fetch(`${BASE_URL}/computeCandidates`, {
         method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({puzzle})
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ puzzle })
       });
       if (!candRes.ok) {
         const err = await candRes.json();
@@ -240,8 +241,10 @@ document.addEventListener("DOMContentLoaded", function () {
       renderPuzzle();
       messageDiv.textContent = "";
       // Hide submission container and show active buttons
-      if (submissionContainer) submissionContainer.classList.add("hidden");
-      if (activeButtons) activeButtons.classList.remove("hidden");
+      if (submissionContainer) 
+        submissionContainer.classList.add("hidden");
+      if (activeButtons) 
+        activeButtons.classList.remove("hidden");
       startTimer();
       updateRemainingDigits();
       undoStack = [];
@@ -252,7 +255,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   });
 
-  // New Puzzle button handler to reopen the submission pane
+  // --- New Puzzle Button Handler ---
   newPuzzleBtn.addEventListener("click", () => {
     stopTimer();
     if (submissionContainer) submissionContainer.classList.remove("hidden");
@@ -261,8 +264,92 @@ document.addEventListener("DOMContentLoaded", function () {
     messageDiv.textContent = "";
   });
 
-  // Render puzzle state as a table with header row and column
+  // --- Download Functionality ---
+  function downloadFile(filename, content, type) {
+    let blob = new Blob([content], { type: type });
+    let url = URL.createObjectURL(blob);
+    let a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function generateMarkdown() {
+    let lines = [];
+    for (let r = 1; r <= 9; r++) {
+      let row = [];
+      for (let c = 1; c <= 9; c++) {
+        let key = `R${r}C${c}`;
+        let cell = currentPuzzle[key];
+        let val = (cell && cell.value != null) ? cell.value : "_";
+        row.push(val);
+      }
+      let rowStr = row.slice(0, 3).join(" ") + " | " + row.slice(3, 6).join(" ") + " | " + row.slice(6).join(" ");
+      lines.push(rowStr);
+      if (r === 3 || r === 6) {
+        lines.push("---------------------");
+      }
+    }
+    return lines.join("\n");
+  }
+
+  downloadJsonBtn.addEventListener("click", () => {
+    let jsonStr = JSON.stringify(currentPuzzle, null, 2);
+    downloadFile("sudoku.json", jsonStr, "application/json");
+  });
+
+  downloadMdBtn.addEventListener("click", () => {
+    let mdStr = generateMarkdown();
+    downloadFile("sudoku.md", mdStr, "text/markdown");
+  });
+
+  // --- Propose Next Move Button Handler ---
+  proposeMoveBtn.addEventListener("click", async () => {
+    try {
+      // Immediately display the right panel with "Thinking..." in flashing text.
+      nextMoveDisplay.innerHTML = `<h3 class="flashing">Thinking...</h3>`;
+      nextMoveDisplay.classList.remove("hidden");  // ensure it is visible
+
+      const response = await fetch(`${BASE_URL}/proposeNextMove`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ puzzle: currentPuzzle })
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.detail);
+      }
+      const nextMove = await response.json();
+      
+      // Build HTML for the steps list.
+      let stepsHtml = "";
+      if (Array.isArray(nextMove.steps) && nextMove.steps.length > 0) {
+        stepsHtml = "<ul>" +
+          nextMove.steps.map(step =>
+            `<li><strong>Cell:</strong> ${step.cell}, <strong>Action:</strong> ${step.action}, <strong>Digit:</strong> ${step.digit}</li>`
+          ).join("") +
+          "</ul>";
+      }
+      
+      nextMoveDisplay.innerHTML = `
+        <h3>Next Move Suggestion</h3>
+        <p><strong>Strategy:</strong> ${nextMove.strategy}</p>
+        <p><strong>Reasoning:</strong> ${nextMove.reasoning}</p>
+        <h4>Steps:</h4>
+        ${stepsHtml}
+      `;
+      nextMoveDisplay.classList.remove("hidden");
+    } catch (error) {
+      alert("Error: " + error.message);
+    }
+  });
+
+  // --- Render Puzzle Board ---
   function renderPuzzle() {
+    // Hide next move display (in case it is visible)
+    nextMoveDisplay.classList.add("hidden");
+
     puzzleTableContainer.innerHTML = "";
     const table = document.createElement("table");
     table.id = "puzzle-table";
@@ -300,7 +387,6 @@ document.addEventListener("DOMContentLoaded", function () {
         if (cell.value !== null && cell.value !== undefined) {
           td.textContent = cell.value;
         } else if (cell.candidates && cell.candidates.length > 0) {
-          // Show candidate list (as comma separated) in the board
           let sorted = cell.candidates.slice().sort((a, b) => a - b);
           td.textContent = "{" + sorted.join(", ") + "}";
         } else {
@@ -318,7 +404,44 @@ document.addEventListener("DOMContentLoaded", function () {
     checkSolved();
   }
 
-  // Hover effects for puzzle cells
+  // --- Check if Puzzle is Solved ---
+  async function checkSolved() {
+    let solved = true;
+    for (let r = 1; r <= 9; r++) {
+      for (let c = 1; c <= 9; c++) {
+        let key = `R${r}C${c}`;
+        let cell = currentPuzzle[key];
+        if (cell.value === null || cell.value === undefined) {
+          solved = false;
+          break;
+        }
+      }
+      if (!solved) break;
+    }
+
+    if (solved) {
+      try {
+        const response = await fetch(`${BASE_URL}/checkStrict`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ puzzle: currentPuzzle })
+        });
+        const data = await response.json();
+        if (data.result) {
+          messageDiv.textContent = "Congratulations! The puzzle is solved!";
+          stopTimer();
+        } else {
+          messageDiv.textContent = "Puzzle appears solved but strict consistency check failed.";
+        }
+      } catch (error) {
+        messageDiv.textContent = "Error in consistency check: " + error.message;
+      }
+    } else {
+      messageDiv.textContent = "";
+    }
+  }
+
+  // --- Hover Effects for Puzzle Cells ---
   function handleMouseOver(cellKey) {
     const [r, c] = cellKey.match(/\d+/g).map(Number);
     let relatedKeys = new Set();
@@ -356,7 +479,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  // Modal operations for cell actions
+  // --- Modal Operations ---
   function openModal(cellKey) {
     selectedCell = cellKey;
     modalCell.textContent = `Cell ${cellKey}`;
@@ -370,7 +493,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
   window.addEventListener("click", (event) => { if (event.target === modal) modal.style.display = "none"; });
 
-  // Show candidate options for assignment
+  // --- Show Candidate Options for Assignment ---
   assignBtn.addEventListener("click", () => {
     let cell = currentPuzzle[selectedCell];
     candidateContainer.innerHTML = "";
@@ -390,7 +513,7 @@ document.addEventListener("DOMContentLoaded", function () {
     if (modalButtons) modalButtons.style.display = "none";
   });
 
-  // Show candidate options for elimination
+  // --- Show Candidate Options for Elimination ---
   eliminateBtn.addEventListener("click", () => {
     let cell = currentPuzzle[selectedCell];
     candidateContainer.innerHTML = "";
@@ -410,14 +533,14 @@ document.addEventListener("DOMContentLoaded", function () {
     if (modalButtons) modalButtons.style.display = "none";
   });
 
-  // Before performing an operation, push the current state to the undo stack.
+  // --- Perform Assignment ---
   async function performAssignment(digit) {
     pushState();
     try {
       const response = await fetch(`${BASE_URL}/assignDigit`, {
         method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({puzzle: currentPuzzle, cell_ref: selectedCell, digit: Number(digit)})
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ puzzle: currentPuzzle, cell_ref: selectedCell, digit: Number(digit) })
       });
       if (!response.ok) {
         const err = await response.json();
@@ -433,13 +556,14 @@ document.addEventListener("DOMContentLoaded", function () {
     updateHistoryButtons();
   }
 
+  // --- Perform Elimination ---
   async function performElimination(digit) {
     pushState();
     try {
       const response = await fetch(`${BASE_URL}/eliminateDigit`, {
         method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({puzzle: currentPuzzle, cell_ref: selectedCell, digit: Number(digit)})
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ puzzle: currentPuzzle, cell_ref: selectedCell, digit: Number(digit) })
       });
       if (!response.ok) {
         const err = await response.json();
@@ -455,7 +579,7 @@ document.addEventListener("DOMContentLoaded", function () {
     updateHistoryButtons();
   }
 
-  // Highlight a cell briefly after an update
+  // --- Highlight a Cell Briefly ---
   function highlightCell(cellKey) {
     let td = document.querySelector(`[data-cell-key="${cellKey}"]`);
     if (td) {
@@ -463,126 +587,4 @@ document.addEventListener("DOMContentLoaded", function () {
       setTimeout(() => td.classList.remove("highlight"), 1000);
     }
   }
-
-  // Check if the puzzle is solved; if so, stop the timer and display a congratulatory message.
-  function checkSolved() {
-    let solved = true;
-    for (let r = 1; r <= 9; r++) {
-      for (let c = 1; c <= 9; c++) {
-        let key = `R${r}C${c}`;
-        let cell = currentPuzzle[key];
-        if (cell.value === null || cell.value === undefined) {
-          solved = false;
-          break;
-        }
-      }
-      if (!solved) break;
-    }
-    if (solved) {
-      messageDiv.textContent = "Congratulations! The puzzle is solved!";
-      stopTimer();
-    } else {
-      messageDiv.textContent = "";
-    }
-  }
-
-  // Download functionality
-  function downloadFile(filename, content, type) {
-    let blob = new Blob([content], { type: type });
-    let url = URL.createObjectURL(blob);
-    let a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  // Generate Markdown representation without candidate lists (empty cells as "_")
-  function generateMarkdown() {
-    let lines = [];
-    for (let r = 1; r <= 9; r++) {
-      let row = [];
-      for (let c = 1; c <= 9; c++) {
-        let key = `R${r}C${c}`;
-        let cell = currentPuzzle[key];
-        let val = (cell && cell.value != null) ? cell.value : "_";
-        row.push(val);
-      }
-      let rowStr = row.slice(0, 3).join(" ") + " | " + row.slice(3, 6).join(" ") + " | " + row.slice(6).join(" ");
-      lines.push(rowStr);
-      if (r === 3 || r === 6) {
-        lines.push("---------------------");
-      }
-    }
-    return lines.join("\n");
-  }
-
-  // Download JSON button event listener
-  downloadJsonBtn.addEventListener("click", () => {
-    let jsonStr = JSON.stringify(currentPuzzle, null, 2);
-    downloadFile("sudoku.json", jsonStr, "application/json");
-  });
-
-  // Download Markdown button event listener
-  downloadMdBtn.addEventListener("click", () => {
-    let mdStr = generateMarkdown();
-    downloadFile("sudoku.md", mdStr, "text/markdown");
-  });
-
-  // Render puzzle state as a table with header row and column
-  function renderPuzzle() {
-    puzzleTableContainer.innerHTML = "";
-    const table = document.createElement("table");
-    table.id = "puzzle-table";
-
-    // Create header row: first empty header cell, then column headers (C1...C9)
-    const headerRow = document.createElement("tr");
-    headerRow.classList.add("header-row");
-    let emptyTh = document.createElement("th");
-    emptyTh.classList.add("header-cell");
-    headerRow.appendChild(emptyTh);
-    for (let c = 1; c <= 9; c++) {
-      let th = document.createElement("th");
-      th.classList.add("header-cell");
-      th.textContent = "C" + c;
-      th.style.textAlign = "bottom";  // align text to bottom
-      headerRow.appendChild(th);
-    }
-    table.appendChild(headerRow);
-
-    // Create rows R1 to R9. Each row begins with a header cell (e.g., "R1") then 9 board cells.
-    for (let r = 1; r <= 9; r++) {
-      const row = document.createElement("tr");
-      let rowHeader = document.createElement("th");
-      rowHeader.classList.add("header-cell");
-      rowHeader.textContent = "R" + r;
-      rowHeader.style.textAlign = "right"; // align text to right
-      row.appendChild(rowHeader);
-      for (let c = 1; c <= 9; c++) {
-        const td = document.createElement("td");
-        if (c % 3 === 0) td.classList.add("block-right");
-        if (r % 3 === 0) td.classList.add("block-bottom");
-        const cellKey = `R${r}C${c}`;
-        td.setAttribute("data-cell-key", cellKey);
-        const cell = currentPuzzle[cellKey];
-        if (cell.value !== null && cell.value !== undefined) {
-          td.textContent = cell.value;
-        } else if (cell.candidates && cell.candidates.length > 0) {
-          let sorted = cell.candidates.slice().sort((a, b) => a - b);
-          td.textContent = "{" + sorted.join(", ") + "}";
-        } else {
-          td.textContent = "_";
-        }
-        td.addEventListener("mouseover", () => handleMouseOver(cellKey));
-        td.addEventListener("mouseout", () => handleMouseOut());
-        td.addEventListener("click", () => openModal(cellKey));
-        row.appendChild(td);
-      }
-      table.appendChild(row);
-    }
-    puzzleTableContainer.appendChild(table);
-    updateRemainingDigits();
-    checkSolved();
-  }
-
 });

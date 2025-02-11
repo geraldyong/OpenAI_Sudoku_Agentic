@@ -1,0 +1,103 @@
+from typing import Dict
+from models import NextMove
+from openai import OpenAI
+import os
+import json
+
+# OpenAI API Key (ensure this is secured in a real-world app, like using environment variables)
+client = OpenAI(
+    api_key  = os.getenv('OPENAI_API_KEY'),
+    organization = os.getenv('OPENAI_ORGANIZATION_ID')
+)
+
+
+# Strip pretext and posttext.
+def strip_pre_post(text):
+  # Find the index of the first '[' character
+  start = text.find('[')
+
+  # Find the index of the first ']' character after '['
+  end = text.rfind(']')
+
+  # Check if both brackets were found
+  if start != -1 and end != -1 and end > start:
+    # Extract the text from '[' to ']'
+    content = text[start + 1 : end]
+  else:
+    content = text
+
+  return content
+
+
+def propose_next_move(puzzle: Dict[str, dict]) -> NextMove:
+    """
+    Given a puzzle (JSON/dict) representing the sudoku board, call the OpenAI LLM
+    to propose the next move. The function returns a NextMove instance.
+    """
+    # Convert the puzzle to a text representation
+    puzzle_str = json.dumps(puzzle)
+
+    # Create a prompt for the LLM.
+    system_prompt=(
+        "You are an expert sudoku solver assistant that helps users to solve sudoku puzzles by determining the next move.\n"
+    )
+
+    user_prompt=(
+        "You are given a Sudoku board in JSON format. Each key is a cell identifier (for example, \"R1C1\" for row 1, column 1). R1C1 is the top left corner and R9C9 is the bottom right corner.\n"
+        "Each cell is an object with two properties:\n"
+        "\"value\": the solved digit for that cell (or null if unsolved).\n"
+        "\"candidates\": an array of possible digits for that cell (empty if the cell is solved).\n\n"
+
+        "Without modifying the board, scan the board and determine the next best move. The next move can be one of two types:\n"
+        "- Assign a digit: Assign a digit to an unsolved cell and remove its candidate list.\n"
+        "- Eliminate a candidate: Remove a candidate digit from the candidate list of an unsolved cell.\n\n"
+
+        "Important:\n"
+        "Use only the candidate data provided in the JSON. Do not assume the existence of any candidate in any of the candidate lists in any cell.\n"
+        "Double-check all candidate lists in all unsolved cells in the same row, column and 3x3 block to ensure accuracy before making any move.\n"
+        "Your reasoning and move must strictly reflect the data in the provided JSON.\n\n"
+
+        "Return the move as a JSON array containing exactly one object with the following keys:\n"
+        "- cell: the cell reference (e.g., \"R1C2\").\n"
+        "- action: either \"assign\" (if you are assigning a digit) or \"eliminate\" (if you are eliminating a candidate).\n"
+        "- digit: the digit being assigned or eliminated.\n"
+        "- strategy: the solving technique used (for example, \"hidden single\", \"naked pair\", etc.).\n"
+        "- reasoning: a detailed explanation of your reasoning and list all other cells in the same row, column and block in which the digit also appears in.\n"
+        "Output only the JSON array in the exact format below, with no extra text:\n"
+        "```\n"
+        "[ { \"cell\": \"<cell>\", \"action\": \"<assign|eliminate>\", \"digit\": <digit>, \"strategy\": \"<strategy>\", \"reasoning\": \"<detailed explanation>\" } ]\n"
+        "```\n\n"
+        "Here is the board:\n"
+        "```\n"
+        f"{puzzle_str}"
+        "```\n"
+    )
+
+    #print(f"{puzzle_str}\n")
+
+    # Call the OpenAI Chat API
+    try:
+        response = client.chat.completions.create(
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            model = "gpt-4o"     
+        )
+    except Exception as e:
+        raise Exception("OpenAI API call failed: " + str(e))
+
+    # Extract the LLM's reply
+    answer = strip_pre_post(
+       response.choices[0].message.content.strip()
+    )
+    #answer = response.choices[0].message.content.strip()
+    print(f"LLM Response: {answer}\n")
+
+    try:
+        data = json.loads(answer)
+        next_move = NextMove(**data)
+        return next_move
+    except Exception as e:
+        raise ValueError("Failed to parse LLM response: " + str(e))
+
